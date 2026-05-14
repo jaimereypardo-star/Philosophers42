@@ -136,6 +136,48 @@ For example:
 
 ---
 
+
+## Bonus
+
+The bonus part reimplements the simulation using **processes and semaphores** instead of threads and mutexes.
+
+### Key differences from the mandatory part
+
+| | Mandatory | Bonus |
+|---|---|---|
+| Concurrency model | Threads (`pthread`) | Processes (`fork`) |
+| Synchronization | Mutexes | Named semaphores |
+| Fork representation | One mutex per fork | Single counting semaphore |
+| Death detection | Shared monitor thread | Per-process watcher thread |
+| Simulation stop | Shared `simulation_over` flag | `dead_sem` signals parent |
+
+### How it works
+
+Each philosopher is spawned as a **child process** via `fork()`. Inside each process, a dedicated `death_watcher` thread runs in parallel, checking every 500 µs whether the philosopher has exceeded `time_to_die` since their last meal. If so, it prints the death message and posts to `dead_sem` before exiting.
+
+The **parent process** waits on `dead_sem`. As soon as it is posted — whether from a death or from a philosopher reaching the meal count — the parent calls `kill(SIGKILL)` on every child and then `waitpid` to reap them all cleanly.
+
+Forks are represented by a **single named semaphore** initialized to `nb_philos`. Any philosopher can grab any two forks by calling `sem_wait` twice, and releases them with `sem_post` after eating. This removes the need for the asymmetric fork-pickup strategy used in the mandatory part.
+
+**Staggering** — instead of the odd/even delay, each philosopher waits a small offset proportional to their ID before starting, spreading out fork requests and preventing early collisions.
+
+### Bonus files
+
+```
+philo_bonus/
+├── main_bonus.c        # Entry point, init, process spawning, cleanup
+├── routines_bonus.c    # Philosopher process logic, death watcher, time utils
+├── philo_bonus.h       # Structs, semaphore names, prototypes
+└── Makefile            # Build rules (produces philo_bonus)
+```
+
+### Running the bonus
+
+```bash
+make bonus
+./philo_bonus number_of_philosophers time_to_die time_to_eat time_to_sleep [must_eat]
+```
+
 ## Resources
 
 ### Concurrency & Threading
